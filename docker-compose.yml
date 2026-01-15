@@ -1,0 +1,107 @@
+# -------------------------------------------------------------------
+# PROJECT NAME
+#
+# This value defines the Docker Compose project name. Docker uses it
+# as a namespace for containers, networks, and volumes. If two compose
+# files use the same project name, they will share volumes and other
+# resources.
+#
+# This MUST be unique per project to avoid database collisions.
+# -------------------------------------------------------------------
+name: DbScaffold
+
+services:
+  # -----------------------------------------------------------------
+  # DATABASE SERVICE
+  #
+  # The service name is used for Docker-internal DNS resolution and
+  # compose commands. Other containers can connect using this name
+  # as the host (for example: Host=db).
+  #
+  # The service name does not affect volume naming.
+  # -----------------------------------------------------------------
+  db:
+    # The Postgres image is pinned to a major version. Pinning avoids
+    # unexpected breaking changes caused by automatic upgrades.
+    # This is the version currently being used by production systems.
+    image: postgres:16
+
+    # ---------------------------------------------------------------
+    # ENVIRONMENT VARIABLES
+    #
+    # These variables are used ONLY during the first initialization
+    # of the database. If the data volume already exists, changing
+    # these values will have no effect.
+    #
+    # If credentials need to change later, the volume must be reset
+    # or the password must be altered inside the database.
+    # ---------------------------------------------------------------
+    environment:
+      POSTGRES_DB: scaffold
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "StrongPassword123!"
+
+    # ---------------------------------------------------------------
+    # DATA PERSISTENCE
+    #
+    # This named volume stores the Postgres data directory. Docker
+    # manages the volume and ensures data persists across container
+    # restarts and system reboots.
+    #
+    # The actual volume name created by Docker will be:
+    #   <project-name>_dbdata
+    #
+    # Keeping the volume name generic here allows Docker Compose to
+    # safely namespace it per project.
+    # ---------------------------------------------------------------
+    volumes:
+      - dbdata:/var/lib/postgresql
+
+    # ---------------------------------------------------------------
+    # PORT MAPPING
+    #
+    # This exposes Postgres to the host machine so tools like DBeaver
+    # or psql can connect via localhost.
+    #
+    # Host ports must be unique across all running projects. If you
+    # run multiple Postgres containers, either change the host port
+    # or remove this section entirely and connect only via Docker
+    # networking.
+    # ---------------------------------------------------------------
+    ports:
+      - "5433:5432"
+
+    # ---------------------------------------------------------------
+    # RESTART POLICY
+    #
+    # This ensures the database restarts automatically after crashes
+    # or Docker daemon restarts, unless it is explicitly stopped.
+    # ---------------------------------------------------------------
+    restart: unless-stopped
+
+    # ---------------------------------------------------------------
+    # HEALTH CHECK
+    #
+    # This allows other services to determine when Postgres is ready
+    # to accept connections. It is especially useful when application
+    # containers depend on the database at startup.
+    # ---------------------------------------------------------------
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d scaffold"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+# -------------------------------------------------------------------
+# VOLUMES
+#
+# The volume name should remain simple and generic. Docker Compose
+# automatically prefixes it with the project name, which prevents
+# collisions between projects.
+#
+# Do not mark this volume as external unless you intentionally want
+# multiple projects to share the same database.
+# -------------------------------------------------------------------
+volumes:
+  dbdata:
+    driver: local
